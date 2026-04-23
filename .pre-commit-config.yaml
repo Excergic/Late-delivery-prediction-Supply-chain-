@@ -1,0 +1,18 @@
+repos:
+  - repo: local
+    hooks:
+      - id: tests
+        name: tests
+        entry: pytest --strict-markers -x
+        language: system
+        pass_filenames: false
+      - id: lint
+        name: lint
+        entry: python -m ruff check .
+        language: system
+        pass_filenames: false
+      - id: typecheck
+        name: typecheck
+        entry: python -m mypy .
+        language: system
+        pass_filenames: false

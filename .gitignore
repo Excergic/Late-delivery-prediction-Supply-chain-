@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Data — never commit raw data to git
+data/*.csv
+data/*.parquet
+data/*.json
+
+# ML artifacts — stored in artifact store, not git
+mlruns/
+mlartifacts/
+.zenml/
+
+# ZenML local artifacts
+.zen/
+
+# Notebook outputs
+*.ipynb_checkpoints/
+
+# OS
+.DS_Store

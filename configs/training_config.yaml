@@ -1,0 +1,42 @@
+# Model training configuration
+# Hyperparameters for each algorithm in the training order:
+#   Dummy → Logistic Regression → Random Forest → LightGBM → XGBoost
+
+# F2-score threshold for a model to be registered in the model registry.
+# A model below this threshold fails the evaluation gate and is not saved.
+# Start permissive (0.50) — tighten after seeing baseline results.
+min_f2_to_register: 0.50
+min_recall_to_register: 0.70
+
+random_state: 42
+
+logistic_regression:
+  C: 1.0               # Inverse regularization strength. Lower = stronger regularization.
+  max_iter: 1000       # Enough for convergence with StandardScaler'd features.
+  solver: "lbfgs"      # Default for binary classification. Good for medium datasets.
+  class_weight: null   # null = uniform. Set to "balanced" if recall drops significantly.
+
+random_forest:
+  n_estimators: 200    # Number of trees. More = better but diminishing returns above 200.
+  max_depth: null      # null = grow until pure or min_samples. Controls complexity.
+  min_samples_leaf: 5  # Prevents overfitting on small leaf nodes.
+  n_jobs: -1           # Use all cores.
+  class_weight: null
+
+lightgbm:
+  n_estimators: 500
+  learning_rate: 0.05  # Low rate + more trees = better generalization.
+  num_leaves: 63       # Controls tree complexity. Rule of thumb: 2^(max_depth) - 1.
+  min_child_samples: 20
+  n_jobs: -1
+  verbose: -1          # Suppress training logs.
+
+xgboost:
+  n_estimators: 500
+  learning_rate: 0.05
+  max_depth: 6
+  min_child_weight: 5
+  subsample: 0.8
+  colsample_bytree: 0.8
+  n_jobs: -1
+  verbosity: 0

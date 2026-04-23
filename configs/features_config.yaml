@@ -1,0 +1,99 @@
+# Feature engineering configuration
+# Defines which columns go into which encoding bucket.
+# All leakage, PII, and ID columns are listed under drop_columns.
+
+date_column: "order date (DateOrders)"
+
+# Columns removed before any feature engineering.
+# Reason codes:
+#   LEAKAGE   - only known AFTER delivery, not at order placement time
+#   PII       - personally identifiable information, no predictive value
+#   NULL      - too many missing values to be useful
+#   ID        - pure identifier, no signal
+#   REDUNDANT - same information captured by another kept column
+#   HIGH_CARD - too many unique values, geography already captured by region/country
+drop_columns:
+  # LEAKAGE
+  - "Delivery Status"
+  - "Days for shipping (real)"
+  - "shipping date (DateOrders)"
+  - "Order Status"
+  # PII
+  - "Customer Email"
+  - "Customer Fname"
+  - "Customer Lname"
+  - "Customer Password"
+  - "Customer Street"
+  # NULL (100% or 86% missing)
+  - "Product Description"
+  - "Order Zipcode"
+  # ID
+  - "Order Id"
+  - "Customer Id"
+  - "Order Customer Id"
+  - "Order Item Id"
+  - "Product Card Id"
+  - "Order Item Cardprod Id"
+  - "Product Image"
+  # REDUNDANT
+  - "Category Id"
+  - "Department Id"
+  - "Product Category Id"
+  # HIGH_CARD / REDUNDANT GEOGRAPHY
+  - "Order City"
+  - "Customer City"
+  - "Order State"
+  - "Customer Zipcode"  # HIGH_CARD: code, not a quantity; Customer State already captures geography
+
+# Numeric features: SimpleImputer(median) → StandardScaler
+# Why StandardScaler? Linear models (Logistic Regression) require features on the same scale.
+# Formula: z = (x - mean) / std  →  zero mean, unit variance.
+# Tree-based models (LightGBM, RandomForest) don't require it but it doesn't hurt.
+numeric_columns:
+  - "Days for shipment (scheduled)"  # KEY: planned delivery window, known at order time
+  - "Benefit per order"
+  - "Sales per customer"
+  - "Order Item Discount"
+  - "Order Item Discount Rate"
+  - "Order Item Product Price"
+  - "Order Item Profit Ratio"
+  - "Order Item Quantity"
+  - "Sales"
+  - "Order Item Total"
+  - "Order Profit Per Order"
+  - "Product Price"
+  - "Latitude"
+  - "Longitude"
+  - "Product Status"
+
+# Low-cardinality categoricals: SimpleImputer('UNKNOWN') → OneHotEncoder
+# One-hot is safe when unique values ≤ ~50 and there is no meaningful ordering.
+# drop='first' removes one dummy per category to avoid multicollinearity for linear models.
+onehot_columns:
+  - "Type"              # 4 unique: DEBIT, TRANSFER, PAYMENT, CASH
+  - "Customer Segment"  # 3 unique: Consumer, Corporate, Home Office
+  - "Shipping Mode"     # 4 unique: Standard Class, Second Class, First Class, Same Day (KEY feature)
+  - "Market"            # 5 unique: LATAM, Europe, Pacific Asia, USCA, Africa
+  - "Department Name"   # 11 unique
+  - "Customer Country"  # 2 unique
+  - "Customer State"    # 46 unique — still manageable for OHE
+
+# High-cardinality categoricals: SimpleImputer('UNKNOWN') → TargetEncoder
+# TargetEncoder replaces each category with P(y=1 | category), smoothed by global prior.
+# Smoothing formula: encoded = (n * category_mean + m * global_mean) / (n + m)
+# where n = category frequency, m = smoothing factor (sklearn auto-selects optimal m).
+# CRITICAL: TargetEncoder uses y (the target) during fit — must be fitted on training data ONLY.
+# At serving time, transform() uses the frozen mappings from training.
+target_enc_columns:
+  - "Category Name"   # 50 unique
+  - "Order Region"    # 23 unique
+  - "Product Name"    # 118 unique
+  - "Order Country"   # 164 unique
+
+# Date-derived features extracted from the date_column above.
+# These are added to the numeric_columns list after extraction.
+date_derived_features:
+  - "order_hour"         # Hour of day (0–23): captures business hours vs overnight orders
+  - "order_day_of_week"  # Day of week (0=Mon, 6=Sun): weekend orders may ship differently
+  - "order_month"        # Month (1–12): captures seasonality
+  - "order_is_weekend"   # Binary: 1 if Sat/Sun — weekends often have different SLAs

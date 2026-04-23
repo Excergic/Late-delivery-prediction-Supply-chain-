@@ -1,0 +1,69 @@
+# Deployment + drift monitoring configuration
+
+# Inference I/O
+inference_input_path: "data/DataCoSupplyChainDataset.csv"
+inference_output_path: "data/predictions.csv"
+features_config_path: "configs/features_config.yaml"
+
+# Model registry aliases for safe rollout
+model_name: "supply-chain-late-delivery"
+production_alias: "production"
+candidate_alias: "staging"
+
+# Shadow comparison
+shadow_input_path: "data/DataCoSupplyChainDataset.csv"
+shadow_output_path: "data/shadow_comparison.csv"
+shadow_disagreement_alert_threshold: 0.10
+
+# Monitoring (layer-1 + layer-2)
+monitor_predictions_path: "data/predictions.csv"
+monitor_labels_path: "data/labeled_predictions.csv"
+monitor_output_path: "data/monitoring_report.json"
+monitor_tracked_columns:
+  - "late_delivery_risk_score"
+  - "predicted_late"
+  - "order_id"
+monitor_min_rows: 100
+monitor_null_rate_threshold: 0.20
+monitor_baseline_predicted_positive_rate: 0.55
+monitor_max_positive_rate_shift: 0.10
+monitor_decision_threshold: 0.50
+monitor_min_f2: 0.70
+monitor_min_recall: 0.75
+
+# Golden parity checks
+golden_parity_input_path: "data/golden_parity_input.csv"
+golden_parity_tolerance: 1.0e-6
+golden_parity_output_path: "data/golden_parity_report.json"
+
+# Drift window paths
+drift_reference_path: "data/reference_window.csv"
+drift_current_path: "data/current_window.csv"
+
+# Statistical thresholds
+drift_ks_p_threshold: 0.05
+drift_chi2_p_threshold: 0.05
+drift_psi_moderate_threshold: 0.10
+drift_psi_significant_threshold: 0.25
+drift_min_features_for_alert: 3
+
+# Priority numeric features (architecture-aligned)
+drift_numeric_features:
+  - "Days for shipment (scheduled)"
+  - "Order Item Quantity"
+  - "Sales"
+  - "Order Item Total"
+  - "Product Price"
+
+# Priority categorical features (architecture-aligned)
+drift_categorical_features:
+  - "Shipping Mode"
+  - "Order Region"
+  - "Market"
+  - "Customer Segment"
+
+# PSI focus features (can be a subset of numeric)
+drift_psi_features:
+  - "Days for shipment (scheduled)"
+  - "Sales"
+  - "Order Item Total"
