@@ -4,6 +4,8 @@ Drift detection step: compares reference vs current data windows.
 
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 from typing import Annotated, Any, cast
 
 import pandas as pd
@@ -17,10 +19,16 @@ from core.drift import (
     summarize_drift,
 )
 
+logger = logging.getLogger(__name__)
+
+_DEFAULT_DEPLOYMENT_CONFIG_PATH = str(
+    Path(__file__).parents[1] / "configs" / "deployment_config.yaml"
+)
+
 
 @step
 def drift_detect(
-    config_path: str = "configs/deployment_config.yaml",
+    config_path: str = _DEFAULT_DEPLOYMENT_CONFIG_PATH,
 ) -> Annotated[dict[str, Any], "drift_report"]:
     """
     Run statistical drift checks and return a report.
@@ -81,9 +89,9 @@ def drift_detect(
         },
     }
 
-    print("Drift detection complete.")
-    print(f"  Drifted features: {summary.n_drifted_features}")
-    print(f"  Alert: {'YES' if summary.should_alert else 'NO'}")
+    logger.info("Drift detection complete.")
+    logger.info("  Drifted features: %d", summary.n_drifted_features)
+    logger.info("  Alert: %s", "YES" if summary.should_alert else "NO")
     if summary.drifted_features:
-        print(f"  Features: {summary.drifted_features}")
+        logger.info("  Features: %s", summary.drifted_features)
     return report

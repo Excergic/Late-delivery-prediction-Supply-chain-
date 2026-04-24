@@ -3,6 +3,9 @@
 # All leakage, PII, and ID columns are listed under drop_columns.
 
 date_column: "order date (DateOrders)"
+numeric_scaler: "standard"  # options: standard | minmax | robust
+target_enc_unknown_fraction: 0.05  # train-only random reassignment to UNKNOWN
+random_state: 42
 
 # Columns removed before any feature engineering.
 # Reason codes:

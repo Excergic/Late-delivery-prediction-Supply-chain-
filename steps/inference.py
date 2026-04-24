@@ -4,6 +4,7 @@ Batch inference step: load registered model bundle, score new orders, write pred
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,6 +14,12 @@ from mlflow import MlflowClient
 from zenml import step
 
 from core.preprocessing import drop_columns, extract_date_features, load_features_config
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_FEATURES_CONFIG_PATH = str(
+    Path(__file__).parents[1] / "configs" / "features_config.yaml"
+)
 
 
 def _resolve_threshold(
@@ -36,9 +43,9 @@ def _resolve_threshold(
 def run_inference(
     input_path: str,
     output_path: str = "data/predictions.csv",
-    features_config_path: str = "configs/features_config.yaml",
+    features_config_path: str = _DEFAULT_FEATURES_CONFIG_PATH,
     model_name: str = "supply-chain-late-delivery",
-    model_alias: str = "staging",
+    model_alias: str = "production",
 ) -> pd.DataFrame:
     """
     Score a batch of new orders with the registered model bundle.
@@ -80,5 +87,5 @@ def run_inference(
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     predictions.to_csv(output, index=False)
-    print(f"Wrote {len(predictions):,} predictions to {output}")
+    logger.info("Wrote %d predictions to %s", len(predictions), output)
     return predictions

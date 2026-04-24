@@ -5,6 +5,7 @@ Monitoring step: evaluate data/prediction health and delayed-label performance.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Annotated, Any, cast
 
@@ -20,10 +21,16 @@ from core.monitoring import (
     compute_prediction_health_metrics,
 )
 
+logger = logging.getLogger(__name__)
+
+_DEFAULT_DEPLOYMENT_CONFIG_PATH = str(
+    Path(__file__).parents[1] / "configs" / "deployment_config.yaml"
+)
+
 
 @step
 def monitor_model(
-    config_path: str = "configs/deployment_config.yaml",
+    config_path: str = _DEFAULT_DEPLOYMENT_CONFIG_PATH,
 ) -> Annotated[dict[str, Any], "monitoring_report"]:
     """
     Run layer-1 and layer-2 monitoring checks.
@@ -76,9 +83,7 @@ def monitor_model(
     with open(output, "w") as f:
         json.dump(report, f, indent=2)
 
-    print("Monitoring run complete.")
-    print(f"  alerts={len(alerts)}")
-    if alerts:
-        for alert in alerts:
-            print(f"  - {alert}")
+    logger.info("Monitoring run complete. alerts=%d", len(alerts))
+    for alert in alerts:
+        logger.warning("  - %s", alert)
     return report

@@ -4,6 +4,7 @@ Shadow comparison step: score same batch with production and candidate aliases.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Annotated, Any, cast
 
@@ -16,6 +17,12 @@ from zenml import step
 
 from core.deployment import build_shadow_dataframe, summarize_shadow_comparison
 from core.preprocessing import drop_columns, extract_date_features, load_features_config
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_DEPLOYMENT_CONFIG_PATH = str(
+    Path(__file__).parents[1] / "configs" / "deployment_config.yaml"
+)
 
 
 def _resolve_threshold(
@@ -51,7 +58,7 @@ def _prepare_features(df: pd.DataFrame, features_config: dict[str, Any]) -> tupl
 
 @step
 def shadow_compare(
-    config_path: str = "configs/deployment_config.yaml",
+    config_path: str = _DEFAULT_DEPLOYMENT_CONFIG_PATH,
 ) -> Annotated[dict[str, Any], "shadow_report"]:
     """
     Compare production vs staging model predictions on the same input window.
@@ -96,7 +103,9 @@ def shadow_compare(
         "output_path": str(output),
         "summary": summary,
     }
-    print("Shadow comparison complete.")
-    print(f"  disagreement_rate={summary['disagreement_rate']:.4f}")
-    print(f"  should_alert={summary['should_alert']}")
+    logger.info(
+        "Shadow comparison complete. disagreement_rate=%.4f should_alert=%s",
+        summary["disagreement_rate"],
+        summary["should_alert"],
+    )
     return report

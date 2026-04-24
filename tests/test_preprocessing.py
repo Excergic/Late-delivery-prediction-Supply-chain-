@@ -7,12 +7,15 @@ Tests verify deterministic behavior: fixed inputs produce exact expected outputs
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from core.preprocessing import (
     build_preprocessor,
     drop_columns,
     extract_date_features,
     get_column_groups,
+    inject_unknown_categories,
+    load_features_config,
     prepare_features,
 )
 
@@ -161,7 +164,6 @@ def test_transform_produces_same_shape_as_fit_transform():
     """
     df_train = make_sample_df(150)
     df_test = make_sample_df(50)
-    # Use different rng to get slightly different data
 
     X_train, y_train = prepare_features(df_train, SAMPLE_FEATURES_CONFIG)
     X_test, _ = prepare_features(df_test, SAMPLE_FEATURES_CONFIG)
@@ -230,3 +232,118 @@ def test_unseen_category_handled_gracefully():
     # This must not raise — unseen category → zero vector via handle_unknown='ignore'
     X_test_t = preprocessor.transform(X_test)
     assert X_test_t.shape[0] == 20
+
+
+def test_inject_unknown_categories_changes_fraction():
+    df = make_sample_df(200)
+    X, _ = prepare_features(df, SAMPLE_FEATURES_CONFIG)
+    X2 = inject_unknown_categories(
+        X, target_enc_cols=["Category Name"], unknown_fraction=0.05, random_state=42
+    )
+    changed = (X2["Category Name"] == "UNKNOWN").sum()
+    assert changed > 0
+
+
+def test_minmax_scaler_keeps_numeric_in_unit_range():
+    df = make_sample_df(200)
+    X, y = prepare_features(df, SAMPLE_FEATURES_CONFIG)
+    numeric_cols, onehot_cols, target_enc_cols = get_column_groups(SAMPLE_FEATURES_CONFIG)
+    available = set(X.columns)
+    numeric_cols = [c for c in numeric_cols if c in available]
+    onehot_cols = [c for c in onehot_cols if c in available]
+    target_enc_cols = [c for c in target_enc_cols if c in available]
+    preprocessor = build_preprocessor(
+        numeric_cols, onehot_cols, target_enc_cols, numeric_scaler="minmax"
+    )
+    X_t = preprocessor.fit_transform(X, y)
+    numeric_part = X_t[:, : len(numeric_cols)]
+    assert (numeric_part >= -1e-9).all()
+    assert (numeric_part <= 1 + 1e-9).all()
+
+
+# ---------------------------------------------------------------------------
+# load_features_config
+# ---------------------------------------------------------------------------
+
+def test_load_features_config_returns_dict(tmp_path):
+    config_file = tmp_path / "features_config.yaml"
+    config_file.write_text("numeric_columns:\n  - Sales\ntarget_column: Late_delivery_risk\n")
+    result = load_features_config(str(config_file))
+    assert isinstance(result, dict)
+    assert result["numeric_columns"] == ["Sales"]
+
+
+def test_load_features_config_missing_file_raises(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        load_features_config(str(tmp_path / "nonexistent.yaml"))
+
+
+# ---------------------------------------------------------------------------
+# get_column_groups
+# ---------------------------------------------------------------------------
+
+def test_get_column_groups_returns_three_lists():
+    numeric_cols, onehot_cols, target_enc_cols = get_column_groups(SAMPLE_FEATURES_CONFIG)
+    assert isinstance(numeric_cols, list)
+    assert isinstance(onehot_cols, list)
+    assert isinstance(target_enc_cols, list)
+
+
+def test_get_column_groups_appends_date_derived_features():
+    numeric_cols, _, _ = get_column_groups(SAMPLE_FEATURES_CONFIG)
+    for feat in SAMPLE_FEATURES_CONFIG["date_derived_features"]:
+        assert feat in numeric_cols
+
+
+def test_get_column_groups_does_not_mutate_config():
+    config_copy = {k: list(v) if isinstance(v, list) else v for k, v in SAMPLE_FEATURES_CONFIG.items()}
+    get_column_groups(SAMPLE_FEATURES_CONFIG)
+    assert SAMPLE_FEATURES_CONFIG["numeric_columns"] == config_copy["numeric_columns"]
+
+
+# ---------------------------------------------------------------------------
+# robust scaler
+# ---------------------------------------------------------------------------
+
+def test_robust_scaler_builds_and_transforms():
+    df = make_sample_df(200)
+    X, y = prepare_features(df, SAMPLE_FEATURES_CONFIG)
+    numeric_cols, onehot_cols, target_enc_cols = get_column_groups(SAMPLE_FEATURES_CONFIG)
+    available = set(X.columns)
+    numeric_cols = [c for c in numeric_cols if c in available]
+    onehot_cols = [c for c in onehot_cols if c in available]
+    target_enc_cols = [c for c in target_enc_cols if c in available]
+    preprocessor = build_preprocessor(
+        numeric_cols, onehot_cols, target_enc_cols, numeric_scaler="robust"
+    )
+    X_t = preprocessor.fit_transform(X, y)
+    assert X_t.shape[0] == 200
+    assert X_t.shape[1] > 0
+
+
+# ---------------------------------------------------------------------------
+# inject_unknown_categories — zero fraction early return
+# ---------------------------------------------------------------------------
+
+def test_inject_unknown_zero_fraction_returns_unchanged():
+    df = make_sample_df(100)
+    X, _ = prepare_features(df, SAMPLE_FEATURES_CONFIG)
+    X2 = inject_unknown_categories(X, target_enc_cols=["Category Name"], unknown_fraction=0.0)
+    pd.testing.assert_frame_equal(X, X2)
+
+
+# ---------------------------------------------------------------------------
+# prepare_features — date column absent
+# ---------------------------------------------------------------------------
+
+def test_prepare_features_skips_date_extraction_when_col_absent():
+    config_no_date = {**SAMPLE_FEATURES_CONFIG, "date_column": "nonexistent_col"}
+    df = make_sample_df(50)
+    # Should not raise; date features simply won't be added
+    X, y = prepare_features(df, config_no_date)
+    # Date-derived features should NOT be present (extraction was skipped)
+    assert "order_hour" not in X.columns
+    assert "order_day_of_week" not in X.columns
+    # Original date column remains (it's not in SAMPLE_FEATURES_CONFIG drop_columns)
+    assert "order date (DateOrders)" in X.columns
+    assert len(y) == 50

@@ -22,7 +22,13 @@ import yaml
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler, TargetEncoder
+from sklearn.preprocessing import (
+    MinMaxScaler,
+    OneHotEncoder,
+    RobustScaler,
+    StandardScaler,
+    TargetEncoder,
+)
 
 
 def load_features_config(config_path: str = "configs/features_config.yaml") -> dict[str, Any]:
@@ -70,6 +76,7 @@ def build_preprocessor(
     numeric_cols: list[str],
     onehot_cols: list[str],
     target_enc_cols: list[str],
+    numeric_scaler: str = "standard",
 ) -> ColumnTransformer:
     """
     Build a ColumnTransformer that applies three preprocessing paths.
@@ -103,9 +110,17 @@ def build_preprocessor(
     Returns:
         Unfitted ColumnTransformer. Call .fit(X_train, y_train) to train it.
     """
+    scaler_name = numeric_scaler.lower().strip()
+    if scaler_name == "minmax":
+        scaler = MinMaxScaler()
+    elif scaler_name == "robust":
+        scaler = RobustScaler()
+    else:
+        scaler = StandardScaler()
+
     numeric_pipe = Pipeline([
         ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
+        ("scaler", scaler),
     ])
 
     onehot_pipe = Pipeline([
@@ -197,3 +212,25 @@ def get_column_groups(config: dict) -> tuple[list[str], list[str], list[str]]:
     numeric_cols = numeric_cols + date_features
 
     return numeric_cols, onehot_cols, target_enc_cols
+
+
+def inject_unknown_categories(
+    df: pd.DataFrame,
+    target_enc_cols: list[str],
+    unknown_fraction: float = 0.05,
+    random_state: int = 42,
+) -> pd.DataFrame:
+    """
+    Train-only category perturbation to teach behavior for unseen categories.
+    """
+    if unknown_fraction <= 0:
+        return df
+    df_copy = df.copy()
+    sample_n = int(round(len(df_copy) * unknown_fraction))
+    if sample_n <= 0:
+        return df_copy
+    sampled_idx = df_copy.sample(n=sample_n, random_state=random_state).index
+    for col in target_enc_cols:
+        if col in df_copy.columns:
+            df_copy.loc[sampled_idx, col] = "UNKNOWN"
+    return df_copy

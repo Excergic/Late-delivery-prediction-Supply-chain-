@@ -16,6 +16,6 @@ echo "[quality-gate] Running ruff..."
 python -m ruff check .
 
 echo "[quality-gate] Running mypy..."
-python -m mypy .
+mypy .
 
 echo "[quality-gate] All gates passed."

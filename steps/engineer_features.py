@@ -15,7 +15,8 @@ At serving time, this artifact is loaded and .transform() is called on new order
 no refitting, no recomputation, identical preprocessing guaranteed.
 """
 
-
+import logging
+from pathlib import Path
 from typing import Annotated
 
 import numpy as np
@@ -26,9 +27,14 @@ from zenml import step
 from core.preprocessing import (
     build_preprocessor,
     get_column_groups,
+    inject_unknown_categories,
     load_features_config,
     prepare_features,
 )
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_CONFIG_PATH = str(Path(__file__).parents[1] / "configs" / "features_config.yaml")
 
 
 @step
@@ -36,7 +42,7 @@ def engineer_features(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame,
     test_df: pd.DataFrame,
-    features_config_path: str = "configs/features_config.yaml",
+    features_config_path: str = _DEFAULT_CONFIG_PATH,
 ) -> tuple[
     Annotated[pd.DataFrame, "X_train"],
     Annotated[pd.DataFrame, "X_val"],
@@ -82,9 +88,22 @@ def engineer_features(
     onehot_cols = [c for c in onehot_cols if c in available]
     target_enc_cols = [c for c in target_enc_cols if c in available]
 
+    # Optional train-only unknown injection for target-encoded high-cardinality features.
+    X_train_for_fit = inject_unknown_categories(
+        X_train_raw,
+        target_enc_cols=target_enc_cols,
+        unknown_fraction=float(config.get("target_enc_unknown_fraction", 0.05)),
+        random_state=int(config.get("random_state", 42)),
+    )
+
     # Build and fit preprocessor on training data ONLY
-    preprocessor = build_preprocessor(numeric_cols, onehot_cols, target_enc_cols)
-    X_train_arr = preprocessor.fit_transform(X_train_raw, y_train)
+    preprocessor = build_preprocessor(
+        numeric_cols,
+        onehot_cols,
+        target_enc_cols,
+        numeric_scaler=str(config.get("numeric_scaler", "standard")),
+    )
+    X_train_arr = preprocessor.fit_transform(X_train_for_fit, y_train)
 
     # Transform val and test with frozen statistics from training
     X_val_arr = preprocessor.transform(X_val_raw)
@@ -98,13 +117,15 @@ def engineer_features(
     X_test = pd.DataFrame(X_test_arr, columns=feature_names)
 
     n_features = X_train.shape[1]
-    print("Feature engineering complete:")
-    print(f"  Input columns used:  {len(numeric_cols)} numeric, "
-          f"{len(onehot_cols)} one-hot, {len(target_enc_cols)} target-enc")
-    print(f"  Output feature count: {n_features}")
-    print(f"  X_train shape: {X_train.shape}")
-    print(f"  X_val   shape: {X_val.shape}")
-    print(f"  X_test  shape: {X_test.shape}")
+    logger.info("Feature engineering complete:")
+    logger.info(
+        "  Input columns used:  %d numeric, %d one-hot, %d target-enc",
+        len(numeric_cols), len(onehot_cols), len(target_enc_cols),
+    )
+    logger.info("  Output feature count: %d", n_features)
+    logger.info("  X_train shape: %s", X_train.shape)
+    logger.info("  X_val   shape: %s", X_val.shape)
+    logger.info("  X_test  shape: %s", X_test.shape)
 
     return (
         X_train,

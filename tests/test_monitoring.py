@@ -62,3 +62,46 @@ def test_build_alerts_flags_prediction_shift() -> None:
         config=config,
     )
     assert any("Predicted positive rate shift exceeds threshold" in alert for alert in alerts)
+
+
+def test_build_alerts_flags_f2_and_recall_below_threshold() -> None:
+    data_health = {"row_count": 500, "null_rates": {}}
+    prediction_health = {"predicted_positive_rate": 0.55}
+    performance_metrics = {"f2": 0.60, "recall": 0.65}
+    config = {
+        "monitor_min_rows": 100,
+        "monitor_null_rate_threshold": 0.20,
+        "monitor_baseline_predicted_positive_rate": 0.55,
+        "monitor_max_positive_rate_shift": 0.10,
+        "monitor_min_f2": 0.70,
+        "monitor_min_recall": 0.75,
+    }
+    alerts = build_alerts(
+        data_health=data_health,
+        prediction_health=prediction_health,
+        performance_metrics=performance_metrics,
+        config=config,
+    )
+    assert any("F2 below threshold" in alert for alert in alerts)
+    assert any("Recall below threshold" in alert for alert in alerts)
+
+
+def test_build_alerts_no_alerts_when_healthy() -> None:
+    data_health = {"row_count": 500, "null_rates": {"predicted_late": 0.0}}
+    prediction_health = {"predicted_positive_rate": 0.55}
+    performance_metrics = {"f2": 0.80, "recall": 0.85}
+    config = {
+        "monitor_min_rows": 100,
+        "monitor_null_rate_threshold": 0.20,
+        "monitor_baseline_predicted_positive_rate": 0.55,
+        "monitor_max_positive_rate_shift": 0.10,
+        "monitor_min_f2": 0.70,
+        "monitor_min_recall": 0.75,
+    }
+    alerts = build_alerts(
+        data_health=data_health,
+        prediction_health=prediction_health,
+        performance_metrics=performance_metrics,
+        config=config,
+    )
+    assert alerts == []

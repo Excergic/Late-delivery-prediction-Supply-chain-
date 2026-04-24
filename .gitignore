@@ -6,6 +6,12 @@ dist/
 build/
 .venv/
 venv/
+.python_user/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
 
 # Data — never commit raw data to git
 data/*.csv

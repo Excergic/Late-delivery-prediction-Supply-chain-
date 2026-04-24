@@ -2,10 +2,12 @@
 
 ## Business Context
 At order placement, the logistics team cannot reliably identify which orders
-will arrive late. Currently, flagging is manual and experience-based — no
-formal metric is tracked. The goal: predict late delivery risk at the moment
-an order is placed, enabling proactive intervention (expedited shipping,
-customer notification, priority routing) before the failure happens.
+will arrive late. Currently, flagging is manual and experience-based no
+formal metric is tracked. 
+
+### The goal 
+
+predict late delivery risk at the moment an order is placed, enabling proactive intervention (expedited shipping, customer notification, priority routing) before the failure happens.
 
 ## ML Formulation
 - **Problem type**: Binary classification
